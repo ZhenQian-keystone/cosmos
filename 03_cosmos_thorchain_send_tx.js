@@ -8,6 +8,22 @@ const bech32 = require('bech32-buffer')
 
 const { MsgDeposit } = require('./types/MsgCompiled').types
 
+const { encodeSecp256k1Pubkey, makeSignDoc, StdFee } = require('@cosmjs/amino')
+const { SignMode } = require('cosmjs-types/cosmos/tx/signing/v1beta1/signing')
+
+const {
+	createAuthzAminoConverters,
+	createBankAminoConverters,
+	createDistributionAminoConverters,
+	createFeegrantAminoConverters,
+	createGovAminoConverters,
+	createIbcAminoConverters,
+	createStakingAminoConverters,
+	createVestingAminoConverters,
+} = require('@cosmjs/stargate/build/modules')
+
+const { AminoConverters, AminoTypes } = require('@cosmjs/stargate/build')
+
 async function main() {
 	const myRegistry = new Registry(defaultStargateTypes)
 	myRegistry.register('/types.MsgDeposit', MsgDeposit)
@@ -57,30 +73,55 @@ async function main() {
 	}
 
 	console.log('depositMsg: ', depositMsg)
-	const response = await client.sign(signerAddr, [depositMsg], fee, memo)
 
-	let response_body_hex_string = Buffer.from(response.bodyBytes).toString(
-		'hex'
+	// create sign data
+	function createDepositAminoConverters() {
+		// todo define own  AminoConverters for /types.MsgDeposit
+	}
+	function createDefaultTypes() {
+		return {
+			...createAuthzAminoConverters(),
+			...createBankAminoConverters(),
+			...createDistributionAminoConverters(),
+			...createGovAminoConverters(),
+			...createStakingAminoConverters(),
+			...createIbcAminoConverters(),
+			...createFeegrantAminoConverters(),
+			...createVestingAminoConverters(),
+			...createDepositAminoConverters(),
+		}
+	}
+
+	console.log('my registory', createDefaultTypes())
+
+	// const AminoTypes = require('@cosmjs/amino')
+	console.log('get signdata ......')
+	let messages = [depositMsg]
+	let aminoTypes = new AminoTypes(createDefaultTypes())
+	const msgs = messages.map((msg) => aminoTypes.toAmino(msg))
+	const signDoc = makeSignDoc(
+		msgs,
+		fee,
+		chainId,
+		memo,
+		accountNumber,
+		sequence
 	)
 
-	console.log('response_body_hex_string: ', response_body_hex_string)
-
-	let response_auth_info_hex_string = Buffer.from(
-		response.authInfoBytes
-	).toString('hex')
+	const response = await client.sign(signerAddr, [depositMsg], fee, memo)
+	console.log(
+		'response_body_hex_string: ',
+		Buffer.from(response.bodyBytes).toString('hex')
+	)
 
 	console.log(
 		'response_auth_info_hex_string: ',
-		response_auth_info_hex_string
+		Buffer.from(response.authInfoBytes).toString('hex')
 	)
-
-	let response_signatures_hex_string = Buffer.from(
-		response.signatures[0]
-	).toString('hex')
 
 	console.log(
 		'response_signatures_hex_string: ',
-		response_signatures_hex_string
+		Buffer.from(response.signatures[0]).toString('hex')
 	)
 
 	// const response = await client.signAndBroadcast(
